@@ -308,6 +308,7 @@ class Module {
     const self = this;
 
     return {
+      ...self.config.actions,
       getState: self.getState,
       get state() { return self.getState(); },
     };

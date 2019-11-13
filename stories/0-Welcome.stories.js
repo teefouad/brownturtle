@@ -15,6 +15,10 @@ const TimerComponent = (props) => {
       <button type="button" onClick={() => props.actions.increase()}>
         Timer {props.state.data.info.timer.time}
       </button>
+
+      <button type="button" onClick={() => props.actions.tryitout()}>
+        tryitout {props.state.data.info.timer.time}
+      </button>
     </div>
   );
 };
@@ -40,6 +44,10 @@ const Timer = connect(
         return {
           'data.info.timer.time': value,
         };
+      },
+
+      tryitout() {
+        return this.increase();
       },
 
       * increase() {
