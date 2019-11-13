@@ -153,7 +153,7 @@ class Module {
         return actionObject;
       };
 
-      this.actionToReducerMap[actionType] = this.createSubReducer(callback, argNames, 'create');
+      this.actionToReducerMap[actionType] = this.createSubReducer(actionType, callback, argNames, 'create');
       this.sagas[actionType] = this.createSaga(actionType);
     });
 
@@ -169,7 +169,7 @@ class Module {
 
       const argNames = helpers.getArgNames(callback);
 
-      this.actionToReducerMap[actionType] = this.createSubReducer(callback, argNames, 'handle');
+      this.actionToReducerMap[actionType] = this.createSubReducer(actionType, callback, argNames, 'handle');
       this.sagas[actionType] = this.createSaga(actionType);
     });
 
@@ -187,15 +187,19 @@ class Module {
       // if the sub action is 'update', just update the state with the payload object
       if (mainActionType === `@@${this.name}/${actionName}` && subActionType === 'UPDATE') {
         newState = helpers.mergeObjects(state, action.payload || {});
-      } else
-      if (this.actionToReducerMap[action.type]) {
-        newState = this.actionToReducerMap[action.type](newState, action);
       }
+
+      // if it's a main action, look for a sub reducer that can handle this action
+      this.getActionTypeMatchers(actionType).forEach((matcher) => {
+        if (this.actionToReducerMap[matcher]) {
+          newState = this.actionToReducerMap[matcher](newState, action);
+        }
+      });
 
       return newState;
     };
 
-    /* build mapping functions -------- */
+    /* map state to props ------------- */
     this.mapStateToProps = (state) => {
       const { [this.name]: ownState, ...globalState } = state;
 
@@ -205,8 +209,10 @@ class Module {
       };
     };
 
+    /* map dispatch to props ---------- */
     this.mapDispatchToProps = dispatch => bindActionCreators(this.actionCreators, dispatch);
 
+    /* combine props ------------------ */
     this.combineProps = (stateProps, dispatchProps, ownProps) => ({
       ...ownProps,
       ...stateProps,
@@ -214,17 +220,23 @@ class Module {
     });
   }
 
-  createSubReducer = (callback, argNames, mode) => (state = {}, action = null) => {
-    const callbackResult = this.executeCallback(callback, action, argNames, mode);
-    const callbackResultType = helpers.getObjectType(callbackResult);
-    const stateFragment = (callbackResultType === 'object' ? callbackResult : {});
+  createSubReducer = (actionType, callback, argNames, mode) => (state = {}, action = null) => {
+    const matchers = this.getActionTypeMatchers(action.type);
 
-    // the saga handler will be called right after the reducer so instead of the saga
-    // handler executing the callback again, pass it the cached result
-    this.cachedCallbackResult = this.cachedCallbackResult || {};
-    this.cachedCallbackResult[action.type] = callbackResult;
+    if (matchers.includes(actionType)) {
+      const callbackResult = this.executeCallback(callback, action, argNames, mode);
+      const callbackResultType = helpers.getObjectType(callbackResult);
+      const stateFragment = (callbackResultType === 'object' ? callbackResult : {});
 
-    return helpers.mergeObjects(state, stateFragment);
+      // the saga handler will be called right after the reducer so instead of the saga
+      // handler executing the callback again, pass it the cached result
+      this.cachedCallbackResult = this.cachedCallbackResult || {};
+      this.cachedCallbackResult[action.type] = callbackResult;
+
+      return helpers.mergeObjects(state, stateFragment);
+    }
+
+    return state;
   };
 
   createSaga = actionType => function* saga() {
@@ -318,6 +330,26 @@ class Module {
     }
 
     return state;
+  }
+
+  getActionTypeMatchers = (actionType) => {
+    const regex = /@@(.+?)\/(.+)/;
+    let moduleName = '';
+    let actionName = actionType;
+
+    if (regex.test(actionType)) {
+      [, moduleName, actionName] = actionType.match(regex);
+    }
+
+    return [
+      actionType, // exact action
+      `@@${moduleName}`, // any action by the module
+      `@@${moduleName}/`, // any action by the module (alias)
+      `@@${moduleName}/*`, // any action by the module (alias)
+      `@@*/${actionName}`, // same action dispatched by any module
+      `*/${actionName}`, // same action dispatched by any module (alias)
+      '*', // any action
+    ];
   }
 }
 

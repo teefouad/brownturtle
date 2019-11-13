@@ -71,6 +71,12 @@ const AuthorCardComponent = (props) => {
       >
         becomeRich
       </button>
+      <button
+        type="button"
+        onClick={props.actions.setTimer}
+      >
+        setTimer
+      </button>
 
       <h2>Time is {props.globalState.timer.data.info.timer.time}</h2>
 
@@ -95,6 +101,11 @@ const AuthorCard = connect(
       increaseBalance() {
         return {
           'info.balance': 100,
+        };
+      },
+      setTimer() {
+        return {
+          'info.balance': -10,
         };
       },
 
@@ -123,6 +134,12 @@ const AuthorCard = connect(
       },
     },
     handlers: {
+      '@@INIT': () => {
+        return {
+          'info.balance': '$100000000000000',
+        };
+      },
+
       'timer.setTimer': () => {
         return {
           timerSet: true,
@@ -134,10 +151,33 @@ const AuthorCard = connect(
 
 // --------------------------------------
 
+const LoggerComponent = (props) => {
+  return (
+    <div>
+      Logger
+    </div>
+  );
+};
+
+const Logger = connect(
+  LoggerComponent,
+  {
+    name: 'logger',
+    handlers: {
+      '*.setTimer': (action) => {
+        console.log('Timer action', action)
+      },
+    },
+  },
+);
+
+// --------------------------------------
+
 const App = () => (
   <div>
     <AuthorCard />
     <Timer />
+    <Logger />
   </div>
 );
 
