@@ -1,4 +1,5 @@
 const path = require('path');
+const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 
 const { NODE_ENV, FILE_NAME } = process.env;
 const filename = `${FILE_NAME}${NODE_ENV === 'production' ? '.min' : ''}.js`;
@@ -12,6 +13,17 @@ module.exports = {
     path: path.join(__dirname, 'dist'),
     filename,
     libraryTarget: 'umd',
+  },
+  optimization: {
+    minimizer: [
+      new UglifyJsPlugin({
+        uglifyOptions: {
+          output: {
+            comments: false,
+          },
+        },
+      }),
+    ],
   },
   module: {
     rules: [
