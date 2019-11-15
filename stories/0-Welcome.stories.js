@@ -1,6 +1,10 @@
 import React from 'react';
-import { Provider, connect } from '../src';
+import { useReducer, Provider, connect } from '../src';
 
+// useReducer('foo', (state = {}, action = null) => {
+//   console.log('custom reducer', state, action)
+//   return state;
+// })
 const delay = (t, v) => new Promise(resolve => setTimeout(resolve, t, v));
 
 // --------------------------------------

@@ -6,7 +6,8 @@ import {
   compose,
   combineReducers,
 } from 'redux';
-import { Provider as ReduxProvider, connect as reduxConnect } from 'react-redux';
+import reduxConnect from 'react-redux/es/connect/connect';
+import ReduxProvider from 'react-redux/es/components/Provider';
 import createSagaMiddleware from 'redux-saga';
 import {
   takeLatest,
@@ -24,16 +25,18 @@ const combinedInitialState = {};
 const store = {
   reducers: {},
   sagas: [],
+  middlewares: [],
 
   create(initialState = {}) {
     const sagaMiddleware = createSagaMiddleware();
     const sagaEnhancer = applyMiddleware(sagaMiddleware);
     const devTools = compose(window.devToolsExtension ? window.devToolsExtension() : foo => foo);
-    const middlewares = [sagaEnhancer, devTools];
+
+    this.middlewares = [...this.middlewares, sagaEnhancer, devTools];
 
     this.storeInstance = createReduxStore(
       this.getRootReducer(initialState),
-      compose(...middlewares),
+      compose(...this.middlewares),
     );
 
     this.sagas.forEach(saga => sagaMiddleware.run(saga));
@@ -97,6 +100,14 @@ const store = {
 
     return state;
   },
+};
+
+export const useReducer = (name, reducer) => {
+  store.reducers[name] = reducer;
+};
+
+export const useMiddleware = (middleware) => {
+  store.middlewares.unshift(applyMiddleware(middleware));
 };
 
 /* =================================== */

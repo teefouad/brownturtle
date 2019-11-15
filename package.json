@@ -1,6 +1,6 @@
 {
-  "name": "speedux",
-  "version": "3.0.0",
+  "name": "brownturtle",
+  "version": "3.0.1",
   "description": "An opinionated state management library based on Redux.",
   "main": "lib/index.js",
   "scripts": {
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/teefouad/speedux.git"
+    "url": "git+https://github.com/teefouad/brownturtle.git"
   },
   "files": [
     "lib",
@@ -39,9 +39,9 @@
   "author": "Mostafa <tee.fouad@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/teefouad/speedux/issues"
+    "url": "https://github.com/teefouad/brownturtle/issues"
   },
-  "homepage": "https://github.com/teefouad/speedux#readme",
+  "homepage": "https://github.com/teefouad/brownturtle#readme",
   "devDependencies": {
     "@babel/cli": "^7.2.3",
     "@babel/core": "^7.3.4",
@@ -66,16 +66,14 @@
     "eslint-plugin-jsx-a11y": "^6.2.1",
     "eslint-plugin-react": "^7.12.4",
     "jest": "^24.4.0",
+    "uglifyjs-webpack-plugin": "^2.2.0",
     "webpack": "^4.29.6",
     "webpack-cli": "^3.2.3"
   },
   "dependencies": {
-    "prop-types": "^15.7.2",
     "react": "^16.11.0",
-    "react-dom": "^16.11.0",
     "react-redux": "^7.1.3",
     "redux": "^4.0.4",
-    "redux-saga": "^1.1.3",
-    "uglifyjs-webpack-plugin": "^2.2.0"
+    "redux-saga": "^1.1.3"
   }
 }
