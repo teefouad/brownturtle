@@ -141,7 +141,7 @@ const store = {
    */
   getState(query) {
     if (this.$updatingState === false) {
-      return Promise.resolve(this.queryState(query, this.storeInstance.getState()));
+      return Promise.resolve(this.getStateSync(query));
     }
 
     return new Promise((resolve) => {
@@ -149,6 +149,10 @@ const store = {
         resolve(this.queryState(query, state));
       });
     });
+  },
+
+  getStateSync(query) {
+    return this.queryState(query, this.storeInstance.getState());
   },
 
   /**
@@ -325,6 +329,10 @@ class Module {
 
       let newState = state;
 
+      this.cachedState = {
+        [this.name]: state,
+      };
+
       // if the sub action is 'update', just update the state with the payload object
       if (
         // for self actions
@@ -402,6 +410,8 @@ class Module {
           let breakAfter = 50;
 
           while (!isDone) {
+            this.cachedState = yield call(() => store.getState());
+
             const next = result.next(data);
             const nextResult = next.value;
 
@@ -447,40 +457,22 @@ class Module {
   }.bind(this);
 
   executeCallback = (callback, action, argNames, mode) => {
-    let callbackType;
-
-    try {
-      if (typeof callback()[Symbol.iterator] === 'function') {
-        callbackType = 'generator';
-      } else {
-        callbackType = 'function';
-      }
-    } catch (e) { callbackType = 'function'; }
-
-    const context = this.getCallbackContext(callbackType);
+    const context = this.getCallbackContext();
     const callbackArgs = mode === 'create' ? argNames.map(arg => action.payload[arg]) : [action];
-
     return callback.apply(context, callbackArgs);
   }
 
-  getCallbackContext = (callbackType) => {
+  getCallbackContext = () => {
     const self = this;
 
     return {
       ...self.config.actions,
-      getState: (...args) => {
-        if (callbackType === 'function') {
-          throw new Error('You can\'t call \'this.getState()\' inside a normal function. Use a generator function instead.');
-        } else {
-          return self.getState(...args);
-        }
-      },
+      getState: self.getState,
     };
   }
 
-  getState = async (query) => {
-    const stateTree = await store.getState();
-    const state = stateTree[this.name];
+  getState = (query) => {
+    const state = this.cachedState[this.name];
 
     // handle query strings
     if (helpers.getObjectType(query) === 'string') {
@@ -536,12 +528,34 @@ class Module {
  *                                              Module namespace, which will be used as a key in
  *                                              the state tree and as a prefix for module actions.
  *                                          - state
+ *                                              The initial state object for the module. This
+ *                                              object is used to populate the Redux state object
+ *                                              with initial values.
  *                                          - actions
+ *                                              A hash table of all the actions that can be
+ *                                              dispatched from the component to update the state.
  *                                          - handlers
+ *                                              A hash table of handler function that listen to
+ *                                              actions dispatched by the store. The key represents
+ *                                              the action type that needs to be handled and the
+ *                                              value represents the handler function.
  *                                          - stateKey
+ *                                              The stateKey is a string used to inject the module
+ *                                              state into the component props.
+ *                                              The default value is 'state'.
  *                                          - globalStateKey
+ *                                              The globalStateKey is a string used to inject the
+ *                                              global state tree, excluding the module state, into
+ *                                              the component props.
+ *                                              The default value is 'globalState'.
  *                                          - actionsKey
+ *                                              The actionsKey is a string used to inject the module
+ *                                              action creator functions into the component props.
+ *                                              The default value is 'actions'.
  *                                          - dispatchKey
+ *                                              The dispatchKey is a string used to inject the
+ *                                              dispatch function into the component props.
+ *                                              The default value is 'actions'.
  */
 export const connect = (component, config) => {
   if (!component || !config) {

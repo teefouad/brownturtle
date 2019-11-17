@@ -5,6 +5,8 @@ export default {
   title: 'Examples',
 };
 
+const delay = t => new Promise(resolve => setTimeout(resolve, t));
+
 /* -------------------------------------------------- */
 
 const App = connect(
@@ -13,6 +15,9 @@ const App = connect(
       <h1>{state.value}</h1>
       <button type="button" onClick={actions.increaseValue}>
         Increase value
+      </button>
+      <button type="button" onClick={actions.increaseValueAsync}>
+        Increase value async
       </button>
     </div>
   ),
@@ -26,41 +31,52 @@ const App = connect(
 
     actions: {
       increaseValue() {
-        const state = this.getState();
         return {
-          value: state.value + 1,
+          value: this.getState('value') + 1,
         };
       },
-      // * increaseValue() {
-      //   const state = yield this.getState();
-      //   yield {
-      //     value: state.value + 1,
-      //   };
-      // },
+      * increaseValueAsync() {
+        yield delay(1000);
+        yield {
+          value: this.getState('value') + 1,
+        };
+        yield delay(1000);
+        yield {
+          value: this.getState('value') + 1,
+        };
+        yield delay(1000);
+        yield {
+          value: this.getState('value') + 1,
+        };
+        // const state = yield this.getState();
+        // yield {
+        //   value: state.value + 1,
+        // };
+      },
     },
   },
 );
 
-const AnotherApp = connect(
-  () => (
-    <div>
-    </div>
-  ),
+// const AnotherApp = connect(
+//   () => (
+//     <div>
+//     </div>
+//   ),
 
-  {
-    name: 'app_b',
+//   {
+//     name: 'app_b',
 
-    state: {
-      value: 0,
-      foo: 'baz',
-    },
-  },
-);
+//     state: {
+//       value: 0,
+//       foo: 'baz',
+//     },
+//   },
+// );
 
 export const test = () => (
   <Provider>
     <App />
-    <AnotherApp />
+    {/* <AnotherApp /> */}
   </Provider>
 );
 
