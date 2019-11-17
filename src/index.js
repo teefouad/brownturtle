@@ -1,4 +1,9 @@
+/**
+ * Dependency imports.
+ */
 import React, { Component } from 'react';
+import reduxConnect from 'react-redux/es/connect/connect';
+import ReduxProvider from 'react-redux/es/components/Provider';
 import {
   createStore as createReduxStore,
   bindActionCreators,
@@ -6,33 +11,79 @@ import {
   compose,
   combineReducers,
 } from 'redux';
-import reduxConnect from 'react-redux/es/connect/connect';
-import ReduxProvider from 'react-redux/es/components/Provider';
 import createSagaMiddleware from 'redux-saga';
 import {
-  takeLatest,
+  takeEvery,
   put,
   call,
 } from 'redux-saga/effects';
+
+/**
+ * Local imports.
+ */
 import * as helpers from './helpers';
 
+/**
+ * An object that is used to build the initial state tree for the
+ * entire app. Each call to `connect()` will add a new key to this
+ * object.
+ * @type {Object}
+ */
 const combinedInitialState = {};
 
 /* =================================== */
 /* STORE
 /* =================================== */
 
+/**
+ * Creates the saga middleware function.
+ * @type {Function}
+ */
+const sagaMiddleware = createSagaMiddleware();
+
+/**
+ * Creates the saga store enhancer.
+ * @type {Function}
+ */
+const sagaEnhancer = applyMiddleware(sagaMiddleware);
+
+/**
+ * Creates a middleware function that is used to enable Redux devTools.
+ * in the browser.
+ * @type {Function}
+ */
+const devTools = compose(window.devToolsExtension ? window.devToolsExtension() : foo => foo);
+
+/**
+ * This is not the actual store object. This is a wrapper object
+ * that manages the Redux store instance. Use `store.getInstance()`
+ * to get a reference to the Redux store.
+ */
 const store = {
+  /**
+   * An object that is used as a map to store references to registered
+   * reducers. This object is used by `getRootReducer()` to create the
+   * root reducer for the store.
+   * @type {Object}
+   */
   reducers: {},
+
+
   sagas: [],
-  middlewares: [],
 
+  /**
+   * An array of middlewares to use when creating the store.
+   * Use exported method `useMiddleware()` to add other middleware
+   * functions to this list.
+   * @type {Array}
+   */
+  middlewares: [sagaEnhancer, devTools],
+
+  /**
+   * Creates a new Redux store instance and updates the reference.
+   */
   create(initialState = {}) {
-    const sagaMiddleware = createSagaMiddleware();
-    const sagaEnhancer = applyMiddleware(sagaMiddleware);
-    const devTools = compose(window.devToolsExtension ? window.devToolsExtension() : foo => foo);
-
-    this.middlewares = [...this.middlewares, sagaEnhancer, devTools];
+    if (this.storeInstance) return this.storeInstance;
 
     this.storeInstance = createReduxStore(
       this.getRootReducer(initialState),
@@ -44,6 +95,10 @@ const store = {
     return this.storeInstance;
   },
 
+  /**
+   * Combines all registered reducers and returns a single reducer function.
+   * @param {Object} initialState The initial state for the app
+   */
   getRootReducer(initialState = {}) {
     const reducers = { ...this.reducers };
 
@@ -72,6 +127,18 @@ const store = {
     };
   },
 
+  /**
+   * Returns the complete state object or part of it based on a given query. If the
+   * query parameter is a string that uses dot notation, it will return the resolved
+   * value of the given key. If the query is an object, it will return an object that
+   * has the same structure but contains the resolved values. If the query parameter
+   * is not provided, the complete state object will be returned.
+   * @param   {String|Object}   query   A query string or a query object that represents
+   *                                    part of the state object that needs to be fetched.
+   *                                    This parameter is not required.
+   * @return  {Promise}                 A promise that eventually resolves with the state
+   *                                    object, part of it or a value in the state object.
+   */
   getState(query) {
     if (this.$updatingState === false) {
       return Promise.resolve(this.queryState(query, this.storeInstance.getState()));
@@ -84,6 +151,12 @@ const store = {
     });
   },
 
+  /**
+   * Queries a state object for a specific value.
+   * @param   {String}    query   Query string.
+   * @param   {Object}    state   State object to query.
+   * @return  {Object}            The state object, part of it or a value in the state object.
+   */
   queryState(query, state) {
     // handle query strings
     if (helpers.getObjectType(query) === 'string') {
@@ -100,12 +173,28 @@ const store = {
 
     return state;
   },
+
+  /**
+   * Returns an reference to the Redux store instance.
+   */
+  getInstance() {
+    return this.storeInstance;
+  },
 };
 
+/**
+ * Adds a reducer function to be used by the root reducer.
+ * @param  {String}   key       Reducer unique identifier key
+ * @param  {Function} reducer   Reducer function.
+ */
 export const useReducer = (name, reducer) => {
   store.reducers[name] = reducer;
 };
 
+/**
+ * Allows registering middleware functions such as Router and other middlewares.
+ * @param {Function} middleWare Middleware function to use
+ */
 export const useMiddleware = (middleware) => {
   store.middlewares.unshift(applyMiddleware(middleware));
 };
@@ -122,6 +211,47 @@ export const Provider = props => (
 );
 
 /* =================================== */
+/* DISPATCH
+/* =================================== */
+
+/**
+ * Dispatches an action. It may accepts two or three parameters:
+ * dispatch(actionType, payload);
+ * dispatch(actionObject);
+ * @param   {String}  actionType    Type of the action to be dispatched
+ * @param   {Object}  payload       Action payload object
+ * @param   {Object}  actionObject  Normal action object that contains a 'type' property
+ */
+function dispatch(...args) {
+  let action = {};
+
+  if (helpers.getObjectType(args[0]) === 'object') {
+    action = helpers.deepCopy(args[0]);
+  } else
+  if (helpers.getObjectType(args[0]) === 'string') {
+    // set the type
+    if (/^([^.]*?)\.([^.]*?)$/.test(args[0])) {
+      const [moduleName, moduleAction] = args[0].split('.');
+      const camelCaseName = helpers.toCamelCase(moduleAction);
+      const actionName = helpers.toSnakeCase(camelCaseName).toUpperCase();
+      action.type = `@@${moduleName}/${actionName}`;
+    } else {
+      [action.type] = args;
+    }
+
+    // set the payload
+    if (helpers.getObjectType(args[1]) === 'object') {
+      action.payload = { ...args[1] };
+      args.splice(1, 1);
+    } else {
+      action.payload = {};
+    }
+  }
+
+  store.storeInstance.dispatch(action);
+}
+
+/* =================================== */
 /* MODULE
 /* =================================== */
 
@@ -131,6 +261,7 @@ class Module {
     this.name = config.name;
     this.stateKey = config.stateKey || 'state';
     this.actionsKey = config.actionsKey || 'actions';
+    this.dispatchKey = config.dispatchKey || 'dispatch';
     this.globalStateKey = config.globalStateKey || 'globalState';
     this.actionCreators = {};
     this.actionToReducerMap = {};
@@ -179,7 +310,6 @@ class Module {
       }
 
       const argNames = helpers.getArgNames(callback);
-
       this.actionToReducerMap[actionType] = this.createSubReducer(actionType, callback, argNames, 'handle');
       this.sagas[actionType] = this.createSaga(actionType);
     });
@@ -196,7 +326,12 @@ class Module {
       let newState = state;
 
       // if the sub action is 'update', just update the state with the payload object
-      if (mainActionType === `@@${this.name}/${actionName}` && subActionType === 'UPDATE') {
+      if (
+        // for self actions
+        (mainActionType === `@@${this.name}/${actionName}` && subActionType === 'UPDATE')
+        // for handled actions
+        || this.actionToReducerMap[mainActionType]
+      ) {
         newState = helpers.mergeObjects(state, action.payload || {});
       }
 
@@ -221,13 +356,14 @@ class Module {
     };
 
     /* map dispatch to props ---------- */
-    this.mapDispatchToProps = dispatch => bindActionCreators(this.actionCreators, dispatch);
+    this.mapDispatchToProps = dispatchFunc => bindActionCreators(this.actionCreators, dispatchFunc);
 
     /* combine props ------------------ */
     this.combineProps = (stateProps, dispatchProps, ownProps) => ({
       ...ownProps,
       ...stateProps,
       [this.actionsKey]: { ...dispatchProps },
+      [this.dispatchKey]: dispatch,
     });
   }
 
@@ -251,7 +387,7 @@ class Module {
   };
 
   createSaga = actionType => function* saga() {
-    this.workerSagas[actionType] = function* workerSaga() {
+    this.workerSagas[actionType] = function* workerSaga(action) {
       const result = this.cachedCallbackResult && this.cachedCallbackResult[actionType];
 
       // check if the callback return value is an iterable (usually a generator function)
@@ -278,7 +414,7 @@ class Module {
             // if the yielded value is an object, use it to update the state
             if (helpers.getObjectType(nextResult) === 'object') {
               yield put({
-                type: `${actionType}/UPDATE`,
+                type: `${action.type}/UPDATE`,
                 payload: nextResult,
               });
             }
@@ -294,39 +430,57 @@ class Module {
           // indicate that the async action has completed by dispatching
           // a COMPLETE sub action
           yield put({
-            type: `${actionType}/COMPLETE`,
+            type: `${action.type}/COMPLETE`,
           });
         } catch (e) {
           window.console.error(e);
 
           yield put({
-            type: `${actionType}/ERROR`,
+            type: `${action.type}/ERROR`,
             message: e.message,
           });
         }
       }
     }.bind(this);
 
-    yield takeLatest(actionType, this.workerSagas[actionType]);
+    yield takeEvery(actionType, this.workerSagas[actionType]);
   }.bind(this);
 
   executeCallback = (callback, action, argNames, mode) => {
+    let callbackType;
+
+    try {
+      if (typeof callback()[Symbol.iterator] === 'function') {
+        callbackType = 'generator';
+      } else {
+        callbackType = 'function';
+      }
+    } catch (e) { callbackType = 'function'; }
+
+    const context = this.getCallbackContext(callbackType);
     const callbackArgs = mode === 'create' ? argNames.map(arg => action.payload[arg]) : [action];
-    return callback.apply(this.getCallbackContext(), callbackArgs);
+
+    return callback.apply(context, callbackArgs);
   }
 
-  getCallbackContext = () => {
+  getCallbackContext = (callbackType) => {
     const self = this;
 
     return {
       ...self.config.actions,
-      getState: self.getState,
-      get state() { return self.getState(); },
+      getState: (...args) => {
+        if (callbackType === 'function') {
+          throw new Error('You can\'t call \'this.getState()\' inside a normal function. Use a generator function instead.');
+        } else {
+          return self.getState(...args);
+        }
+      },
     };
   }
 
   getState = async (query) => {
-    const state = (await store.getState())[this.name];
+    const stateTree = await store.getState();
+    const state = stateTree[this.name];
 
     // handle query strings
     if (helpers.getObjectType(query) === 'string') {
@@ -369,19 +523,46 @@ class Module {
 /* CONNECT
 /* =================================== */
 
-export const connect = (component, config = {}) => {
+/**
+ * Connects a component to the Redux store and injects its module state and actions into the
+ * component props. If the module name is not provided, the name of the component or function
+ * will be used instead. If the component definition is an anonymous function, then the module
+ * name must be provided in the configuration object. If the initial state is not provided, an
+ * empty object will be assumed to be the initial state.
+ * @param {Class|Function}    component   The component to be connected.
+ * @param {Object}            config      Configuration object that may contain all or some of
+ *                                        the following keys:
+ *                                          - name
+ *                                              Module namespace, which will be used as a key in
+ *                                              the state tree and as a prefix for module actions.
+ *                                          - state
+ *                                          - actions
+ *                                          - handlers
+ *                                          - stateKey
+ *                                          - globalStateKey
+ *                                          - actionsKey
+ *                                          - dispatchKey
+ */
+export const connect = (component, config) => {
+  if (!component || !config) {
+    throw new Error('The \'connect\' function expects a component definition and a valid configuration object as parameters.');
+  }
+
   if (typeof component !== 'function' && Object.getPrototypeOf(component) !== Component) {
     throw new Error('Expected the first parameter to be a pure function or a valid React component class.');
   }
 
   if (helpers.getObjectType(config) !== 'object') {
-    throw new Error('Module configuration must be an object');
+    throw new Error('Module configuration must be a valid object.');
   }
 
-  const moduleConfig = { ...config };
+  const moduleConfig = {
+    ...config,
+    name: config.name || helpers.getComponentName(component),
+  };
 
   if (!moduleConfig.name) {
-    moduleConfig.name = helpers.getComponentName(component);
+    throw new Error('Property \'name\' is missing from the module configuration. Module name is required.');
   }
 
   if (typeof connect.moduleNames === 'undefined') {
@@ -389,14 +570,15 @@ export const connect = (component, config = {}) => {
   }
 
   if (connect.moduleNames[moduleConfig.name] === true) {
-    throw new Error(`Name '${moduleConfig.name}' has already been used by another module, please use a different name`);
+    throw new Error(`Name '${moduleConfig.name}' has already been used by another module, please use a different name.`);
   } else {
     connect.moduleNames[moduleConfig.name] = true;
   }
 
   const module = new Module(moduleConfig);
+  const initialState = moduleConfig.initialState || moduleConfig.state || {};
 
-  combinedInitialState[module.name] = moduleConfig.initialState || moduleConfig.state || {};
+  combinedInitialState[module.name] = helpers.deepCopy(initialState);
   store.reducers[module.name] = module.reducer;
 
   const connectedComponent = reduxConnect(
