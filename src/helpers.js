@@ -11,39 +11,24 @@ export const getArgNames = (func) => {
   // parameters that the function expects
   let params = '';
 
-  // check if the input is a normal function
-  if (str.startsWith('function')) {
-    let i = str.indexOf('(');
-    let p = 0; // number of open parentheses
+  let i = str.indexOf('(');
+  let p = 0; // number of open parentheses
 
-    for (; i < str.length; i += 1) {
-      if (str[i] === '(') p += 1;
-      if (str[i] === ')') p -= 1;
-      if (p === 0) {
-        params = str.slice(str.indexOf('('), i + 1);
-        break;
-      }
+  for (; i < str.length; i += 1) {
+    if (str[i] === '(') p += 1;
+    if (str[i] === ')') p -= 1;
+    if (p === 0) {
+      params = str.slice(str.indexOf('('), i);
+      break;
     }
-  } else
-  // not a normal function, check if it is an arrow function
-  if (str[0] === '(') {
-    let i = 0;
-    let p = 0; // number of open parentheses
-
-    for (; i < str.length; i += 1) {
-      if (str[i] === '(') p += 1;
-      if (str[i] === ')') p -= 1;
-      if (str[i] === '=' && str[i + 1] === '>' && p === 0) {
-        params = str.slice(0, i);
-        break;
-      }
-    }
-  } else {
-    [params] = (str.match(/(.*?)(?==>)/) || []);
   }
 
-  // clear destructuring and parentheses
-  params = params && params.replace(/[{}()\s]/g, '');
+  if (!params.length) {
+    [params] = str.match(/(.*?)(?==>)/);
+  }
+
+  // clear destructuring, parentheses, spaces and comments
+  params = params && params.replace(/[(){}\s]|\/\*.*?\*\//g, '');
 
   // convert to an array of un-clean parameters
   params = (params && params.split(',')) || [];
